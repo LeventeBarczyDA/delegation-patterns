@@ -1,0 +1,56 @@
+module Main where
+
+import DA.List (dedup)
+
+template Funding 
+  with 
+    issuer: Party 
+    desk: Party 
+    amount: Decimal 
+    currency: Text 
+    purpose: Text 
+
+    disclosedTo: [Party]
+    public: Party 
+  where 
+    signatory issuer 
+
+    observer public, disclosedTo 
+
+    controller desk can 
+      SendWire: (ContractId Funding, ContractId Wire)
+        with 
+          wireAmount: Decimal 
+          instruction: Text 
+        do 
+          assertMsg "wireAmount should be positive!" $ 
+            wireAmount > 0.0 
+          assertMsg "wireAmount cannot exceed funding amount!" $
+            wireAmount <= amount 
+
+          remainingFunding <- create this with amount = amount - wireAmount 
+          wire <- create Wire 
+            with 
+              from = desk 
+              instruction 
+              fundedBy = issuer 
+              amount = wireAmount 
+              currency
+          
+          return (remainingFunding, wire)
+
+      Disclose: ContractId Funding 
+        with 
+          to: Party 
+        do 
+          create this with disclosedTo = dedup $ to :: disclosedTo
+
+template Wire 
+  with  
+    from: Party 
+    instruction: Text 
+    fundedBy: Party 
+    amount: Decimal 
+    currency: Text 
+  where
+    signatory fundedBy, from 

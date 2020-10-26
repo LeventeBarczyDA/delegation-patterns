@@ -1,0 +1,126 @@
+module Desk where
+
+import Main 
+
+import DA.TextMap qualified as Map (lookup, insert, delete, TextMap, fromList)
+import DA.List qualified as List (dedup, delete)
+
+import Daml.Script
+
+template Desk 
+  with 
+    desk: Party 
+    members: [Party]
+    admins: [Party]
+    wireLimits: Map.TextMap Decimal
+  where 
+    signatory desk
+    observer members, admins
+
+    choice UseFunding: (ContractId Funding, ContractId Wire)
+        with 
+          instruction: Text 
+          wireAmount: Decimal 
+          fundingId: ContractId Funding
+          member: Party 
+      controller member 
+        do 
+          assertMsg"Attempt to spend by non-member!" $
+            member `elem` members
+          funding <- fetch fundingId 
+          assertMsg"This isn't the desks funding!" $
+            funding.desk == desk
+          assertMsg"Breached desk's own limit!" $
+            case Map.lookup funding.currency wireLimits of 
+              None -> True 
+              Some limit -> wireAmount < limit
+
+          exercise fundingId SendWire with ..
+
+    choice AddMember: ContractId Desk 
+        with 
+          member: Party 
+          admin: Party 
+      controller admin 
+        do 
+          assertMsg"Not an admin!" $
+            admin `elem` admins 
+          create this with members = List.dedup $ member :: members
+
+    choice RemoveMember: ContractId Desk 
+        with 
+          member: Party 
+          admin: Party 
+      controller admin 
+        do 
+          assertMsg"Not an admin!" $
+            admin `elem` admins 
+          create this with members = List.delete member members 
+
+    choice ChangeLimit: ContractId Desk 
+        with 
+          currency: Text 
+          optLimit: Optional Decimal 
+          admin: Party 
+      controller admin 
+        do 
+          assertMsg"Not an admin!" $ 
+            admin `elem` admins 
+          case optLimit of 
+            Some limit -> create this with wireLimits = Map.insert currency limit wireLimits 
+            None -> create this with wireLimits = Map.delete currency wireLimits
+
+    controller desk can 
+      AddAdmin: ContractId Desk 
+        with 
+          admin: Party 
+        do 
+          create this with admins = List.dedup $ admin :: admins 
+
+      RemoveAdmin: ContractId Desk 
+        with 
+          admin: Party 
+        do 
+          create this with admins = List.delete admin admins
+
+test = script do 
+  treasury <- allocateParty "Treasury"
+  desk <- allocateParty "Desk"
+  public <- allocateParty "Public"
+  deskAdmin <- allocateParty "DeskAdmin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+
+  fundingId <- submit treasury $
+    createCmd Funding 
+      with 
+        issuer = treasury 
+        desk 
+        public
+        amount = 1000000.00
+        currency = "USD"
+        purpose = "Trading"
+        disclosedTo = []
+
+  deskId <- submit desk $
+    createCmd Desk 
+      with 
+        desk 
+        members = [alice, bob]
+        admins = [deskAdmin]
+        wireLimits = Map.fromList [("USD", 20000.00)]
+
+  fundingId <- submit desk $
+    exerciseCmd fundingId Disclose 
+      with to = alice
+
+  submit alice $
+    exerciseCmd deskId UseFunding 
+      with 
+        instruction = "Routing 123"
+        wireAmount = 15000.00
+        fundingId 
+        member = alice
+
+  return ()
+

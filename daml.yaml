@@ -1,0 +1,20 @@
+sdk-version: 1.6.0
+name: entitlements
+source: daml
+init-script: Main:setup
+parties:
+  - Alice
+  - Bob
+  - Charlie
+  - Desk
+  - Treasury 
+  - DeskAdmin
+  - Public
+
+version: 0.0.1
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script
+sandbox-options:
+  - --wall-clock-time
