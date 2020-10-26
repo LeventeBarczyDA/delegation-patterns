@@ -83,13 +83,16 @@ template Desk
         do 
           create this with admins = List.delete admin admins
 
+makeParty: Text -> Script Party 
+makeParty name = allocatePartyWithHint name (PartyIdHint name)
+
 test = script do 
-  treasury <- allocateParty "Treasury"
-  desk <- allocateParty "Desk"
-  public <- allocateParty "Public"
-  deskAdmin <- allocateParty "DeskAdmin"
-  alice <- allocateParty "Alice"
-  bob <- allocateParty "Bob"
+  treasury <- makeParty "Treasury" 
+  desk <- makeParty "Desk"
+  public <- makeParty "Public"
+  deskAdmin <- makeParty "DeskAdmin"
+  alice <- makeParty "Alice"
+  bob <- makeParty "Bob"
 
   fundingId <- submit treasury $
     createCmd Funding 
