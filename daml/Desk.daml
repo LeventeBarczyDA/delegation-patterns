@@ -17,7 +17,7 @@ template Desk
     signatory desk
     observer members, admins
 
-    choice UseFunding: (ContractId Funding, ContractId Wire)
+    nonconsuming choice UseFunding: (ContractId Funding, ContractId Wire)
         with 
           instruction: Text 
           wireAmount: Decimal 
